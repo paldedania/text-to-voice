@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import os
+import platform
 import subprocess
 from pathlib import Path
+
+import pytest
 
 from scripts.render_user_service import render_service, systemd_path
 
@@ -22,6 +25,7 @@ def test_service_renderer_quotes_paths_and_systemd_specifiers(tmp_path: Path) ->
     assert "WantedBy=default.target" in rendered
 
 
+@pytest.mark.skipif(platform.system() != "Linux", reason="systemd is only used on Linux")
 def test_installer_enables_generated_user_service(tmp_path: Path) -> None:
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()

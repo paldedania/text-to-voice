@@ -1,82 +1,68 @@
 # Text to Voice
 
-A local-first web app for multilingual text-to-speech. It uses Kokoro for speech and M2M100 to translate English text before synthesis. No provider API key is required.
+A local-first multilingual text-to-speech web app. Kokoro creates speech, and M2M100 translates English before non-English synthesis. No API key or cloud speech service is required.
 
-## Features
+## What it supports
 
-- Local speech generation with language-matched Kokoro voices
-- English translation into Hindi, Spanish, French, Italian, Portuguese, Japanese and Chinese
-- WAV, MP3 and Opus output
-- SQLite job history and a one-job generation queue
-- Optional reference recordings for compatible voice-cloning engines
-- CPU and NVIDIA CUDA support
+| System | Run locally | Start at sign-in | Acceleration |
+|---|---|---|---|
+| Windows 10/11 x64 | `run.ps1` | Task Scheduler script | NVIDIA CUDA or CPU |
+| macOS 13+ (Apple Silicon) | `run.sh` | LaunchAgent script | CPU |
+| Modern Linux x64 | `run.sh` | systemd user service | NVIDIA CUDA or CPU |
+
+The normal app and automated tests are cross-platform. The startup scripts use each operating system's native service manager; they are not one Linux-only solution.
+
+Windows on ARM, Intel Macs, and Linux ARM are not supported by the current locked speech-model stack.
 
 ## Requirements
 
-- Python 3.11
-- [uv](https://docs.astral.sh/uv/)
-- FFmpeg
-- `espeak-ng`
-- An NVIDIA GPU is optional
+| Resource | Minimum | Recommended |
+|---|---:|---:|
+| Python | 3.11 | 3.11 |
+| Memory | 8 GB RAM | 16 GB RAM |
+| Free disk | 12 GB | 15 GB |
+| GPU | None | NVIDIA GPU with 8 GB+ VRAM |
 
-Internet access is required during installation and the first model download.
+Install [uv](https://docs.astral.sh/uv/), [FFmpeg](https://ffmpeg.org/download.html), and [eSpeak NG](https://github.com/espeak-ng/espeak-ng/releases). Internet is needed for setup and the first model download; later use is local.
 
-## Quick start
+## Install and run
 
-```bash
+```text
 git clone https://github.com/paldedania/text-to-voice.git
 cd text-to-voice
-uv sync --extra dev --extra kokoro
-./run.sh
+uv sync --extra dev --extra kokoro --extra cpu
 ```
 
-Open [http://127.0.0.1:8765](http://127.0.0.1:8765).
+Then run `./run.sh` on macOS/Linux or `.\run.ps1` in Windows PowerShell. Open [http://127.0.0.1:8765](http://127.0.0.1:8765).
 
-The first translated job downloads the M2M100 model, which is about 1.9 GB. Kokoro weights and selected voices are also cached locally. Later runs can work without a network connection.
+The command above works everywhere. On Windows or Linux with an NVIDIA GPU, replace `--extra cpu` with `--extra cuda`. Do not select both.
 
-## Background service on Linux
+The first translated job downloads M2M100 (about 1.9 GB). Kokoro models and voices are also cached locally.
 
-Install the user service once to start the app automatically at login:
+## Optional start at sign-in
 
-```bash
-./install-service.sh
-```
+| System | Install | Remove |
+|---|---|---|
+| Windows PowerShell | `.\install-service-windows.ps1` | `.\uninstall-service-windows.ps1` |
+| macOS Terminal | `./install-service-macos.sh` | `./uninstall-service-macos.sh` |
+| Linux Terminal | `./install-service.sh` | `./uninstall-service.sh` |
 
-The installer uses the current clone location, so the repository can be stored anywhere. Re-run it after moving the project.
+Run the matching installer after `uv sync`. It records the current clone location, so rerun it if you move the repository.
 
-```bash
-./start-background.sh     # start
-./stop-background.sh      # stop
-./uninstall-service.sh    # remove autostart, keep local data
-```
+## Language behavior
 
-## How language selection works
+English and British English are spoken as written. Selecting Hindi, Spanish, French, Italian, Portuguese, Japanese, or Chinese translates the English text locally and then uses a matching voice. Review important translations before using the audio.
 
-English and British English are spoken as written. Selecting another language first translates the English script locally, then sends the translated text to the matching Kokoro voice. The translated script appears in the output for review.
-
-Machine translation can make mistakes. Review important scripts before using the audio.
-
-## GPU check
+## Hardware check and tests
 
 ```bash
 uv run python scripts/check_gpu.py
-```
-
-The app uses CUDA when PyTorch detects a compatible NVIDIA GPU and falls back to CPU otherwise.
-
-## Tests
-
-```bash
 uv run pytest
 uv run ruff check .
 ```
 
-## Local data and privacy
+CUDA is used when a compatible NVIDIA GPU is available; otherwise the app uses CPU. GitHub Actions runs the core test suite on Windows, macOS, and Linux. GPU inference is tested on real hardware, not hosted CI.
 
-Job history, generated audio and reference recordings are stored under `data/`. Git ignores those files, downloaded models, virtual environments and environment files.
+## Privacy
 
-The server binds to `127.0.0.1` and has no public authentication. Do not bind it to `0.0.0.0` or expose it to the internet without adding authentication and rate limits.
-
-## Chatterbox
-
-Chatterbox adapters are included, but Chatterbox is not part of the supported install because its current dependency stack is incompatible with some recent NVIDIA GPU environments. Kokoro is the supported speech engine in this release.
+Generated audio, job history, and reference recordings stay under `data/` and are ignored by Git. The server only listens on `127.0.0.1`; add authentication before exposing it to a network.

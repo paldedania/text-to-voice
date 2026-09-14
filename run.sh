@@ -5,7 +5,7 @@ project_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 cd "$project_dir"
 
 if [[ ! -x .venv/bin/uvicorn ]]; then
-  echo "The project environment is missing. Run: uv sync --extra dev --extra kokoro" >&2
+  echo "The project environment is missing. Follow the setup command in README.md." >&2
   exit 1
 fi
 
