@@ -1,0 +1,19 @@
+[Unit]
+Description=Text to Voice local speech studio
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+WorkingDirectory=@PROJECT_DIR@
+ExecStart=@UVICORN@ app.main:app --host 127.0.0.1 --port 8765
+Restart=on-failure
+RestartSec=2
+TimeoutStopSec=30
+Environment=PYTHONUNBUFFERED=1
+NoNewPrivileges=true
+PrivateTmp=true
+UMask=0077
+
+[Install]
+WantedBy=default.target

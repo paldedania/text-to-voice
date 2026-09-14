@@ -1,0 +1,108 @@
+from __future__ import annotations
+
+import importlib.util
+from collections.abc import Callable
+
+from app.services.text import split_text
+
+MODEL_ID = "facebook/m2m100_418M"
+M2M_LANGUAGE_CODES = {
+    "ar": "ar",
+    "da": "da",
+    "de": "de",
+    "el": "el",
+    "en": "en",
+    "en-gb": "en",
+    "es": "es",
+    "fi": "fi",
+    "fr": "fr",
+    "he": "he",
+    "hi": "hi",
+    "it": "it",
+    "ja": "ja",
+    "ko": "ko",
+    "ms": "ms",
+    "nl": "nl",
+    "no": "no",
+    "pl": "pl",
+    "pt": "pt",
+    "pt-br": "pt",
+    "ru": "ru",
+    "sv": "sv",
+    "sw": "sw",
+    "tr": "tr",
+    "zh": "zh",
+}
+
+
+class LocalTranslator:
+    """Translate English text with a lazily loaded local M2M100 model."""
+
+    def __init__(self) -> None:
+        self._tokenizer = None
+        self._model = None
+        self._device = "cpu"
+
+    @property
+    def available(self) -> bool:
+        return (
+            importlib.util.find_spec("sentencepiece") is not None
+            and importlib.util.find_spec("transformers") is not None
+        )
+
+    def _load(self):
+        if self._model is not None and self._tokenizer is not None:
+            return self._tokenizer, self._model
+        if not self.available:
+            raise RuntimeError(
+                "Local translation is not installed. Run: uv sync --extra dev --extra kokoro"
+            )
+
+        import torch
+        from transformers import M2M100ForConditionalGeneration, M2M100Tokenizer
+
+        self._device = "cuda" if torch.cuda.is_available() else "cpu"
+        dtype = torch.float16 if self._device == "cuda" else torch.float32
+        self._tokenizer = M2M100Tokenizer.from_pretrained(MODEL_ID)
+        self._model = M2M100ForConditionalGeneration.from_pretrained(
+            MODEL_ID,
+            torch_dtype=dtype,
+        ).to(self._device)
+        self._model.eval()
+        return self._tokenizer, self._model
+
+    def translate(
+        self,
+        text: str,
+        target_language: str,
+        progress: Callable[[int], None] | None = None,
+    ) -> str:
+        target_code = M2M_LANGUAGE_CODES.get(target_language)
+        if target_code is None:
+            raise ValueError(f"Local translation does not support '{target_language}'.")
+        if target_code == "en":
+            return text
+
+        import torch
+
+        tokenizer, model = self._load()
+        tokenizer.src_lang = "en"
+        chunks = split_text(text, max_characters=450)
+        translations: list[str] = []
+        for index, chunk in enumerate(chunks):
+            encoded = tokenizer(
+                chunk,
+                return_tensors="pt",
+                truncation=True,
+                max_length=512,
+            ).to(self._device)
+            with torch.inference_mode():
+                generated = model.generate(
+                    **encoded,
+                    forced_bos_token_id=tokenizer.get_lang_id(target_code),
+                    max_new_tokens=512,
+                )
+            translations.append(tokenizer.batch_decode(generated, skip_special_tokens=True)[0])
+            if progress:
+                progress(round((index + 1) / len(chunks) * 100))
+        return "\n\n".join(translations)

@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Generate private speech with models running on this computer." />
+    <title>Text to Voice</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="masthead">
+      <a class="wordmark" href="/" aria-label="Text to Voice home">
+        <span class="wordmark-mark" aria-hidden="true">
+          <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+        </span>
+        <span>Text to Voice</span>
+      </a>
+      <div class="machine-status" id="machine-status" aria-live="polite">
+        <span class="status-dot"></span>
+        <span>Checking local hardware</span>
+      </div>
+    </header>
+
+    <main>
+      <section class="intro" aria-labelledby="page-title">
+        <p class="section-number">Local studio 01</p>
+        <h1 id="page-title">Write here.<br />Hear it here.</h1>
+        <p class="intro-copy">
+          Your text and voice samples stay on this computer. Choose a local model,
+          generate speech, and keep the audio file.
+        </p>
+      </section>
+
+      <section class="studio" aria-label="Speech generation studio">
+        <div class="script-panel">
+          <div class="panel-heading">
+            <div>
+              <span class="panel-index">A</span>
+              <h2>Script</h2>
+            </div>
+            <span id="character-count">0 / 20,000</span>
+          </div>
+          <label class="visually-hidden" for="script">Text to speak</label>
+          <textarea
+            id="script"
+            maxlength="20000"
+            spellcheck="true"
+            placeholder="Paste a paragraph, lesson, note, or narration..."
+          ></textarea>
+          <div class="script-footer">
+            <button class="text-action" id="use-sample" type="button">Use test script</button>
+            <span id="word-count">0 words</span>
+          </div>
+        </div>
+
+        <form class="channel-strip" id="generation-form">
+          <div class="panel-heading compact">
+            <div>
+              <span class="panel-index">B</span>
+              <h2>Voice channel</h2>
+            </div>
+          </div>
+
+          <label for="engine">Local model</label>
+          <select id="engine" name="engine"></select>
+          <p class="field-note" id="engine-note">Loading installed engines...</p>
+
+          <label for="language">Translate and speak</label>
+          <select id="language" name="language"></select>
+          <p class="field-note" id="language-note">
+            English input stays in English.
+          </p>
+
+          <label for="voice">Voice</label>
+          <select id="voice" name="voice"></select>
+
+          <div class="range-heading">
+            <label for="speed">Reading speed</label>
+            <output id="speed-value" for="speed">1.00×</output>
+          </div>
+          <input id="speed" name="speed" type="range" min="0.5" max="2" value="1" step="0.05" />
+
+          <label for="output-format">File format</label>
+          <div class="segmented" id="output-format">
+            <label><input type="radio" name="format" value="wav" checked /><span>WAV</span></label>
+            <label><input type="radio" name="format" value="mp3" /><span>MP3</span></label>
+            <label><input type="radio" name="format" value="opus" /><span>Opus</span></label>
+          </div>
+
+          <button class="generate-button" id="generate" type="submit">
+            <span>Generate locally</span>
+            <span aria-hidden="true">↗</span>
+          </button>
+        </form>
+      </section>
+
+      <section class="transport" aria-labelledby="output-title">
+        <div class="transport-line" aria-hidden="true">
+          <span id="progress-fill"></span>
+        </div>
+        <div class="transport-heading">
+          <div>
+            <span class="panel-index">C</span>
+            <h2 id="output-title">Output</h2>
+          </div>
+          <span class="transport-state" id="transport-state">Waiting for a script</span>
+        </div>
+        <div class="output-content" id="output-content">
+          <p id="output-message">Generated audio will appear here.</p>
+          <details class="translation-result" id="translation-result" hidden>
+            <summary>Translated script</summary>
+            <p id="translated-text"></p>
+            <small>Local machine translation can make mistakes. Review the script before using the audio.</small>
+          </details>
+          <audio id="audio-player" controls hidden></audio>
+          <a class="download-link" id="download-link" href="#" download hidden>Save audio</a>
+        </div>
+      </section>
+
+      <section class="lower-grid">
+        <section class="voice-lab" aria-labelledby="voice-lab-title">
+          <div class="panel-heading">
+            <div>
+              <span class="panel-index">D</span>
+              <h2 id="voice-lab-title">Voice lab</h2>
+            </div>
+            <span>Optional</span>
+          </div>
+          <p>
+            Add a clean recording of your voice, or one you have permission to use.
+            Chatterbox can use it as a speaking reference.
+          </p>
+          <form id="voice-form">
+            <label for="voice-name">Voice name</label>
+            <input id="voice-name" name="name" maxlength="80" placeholder="My reading voice" required />
+            <label for="voice-file">Reference recording</label>
+            <input id="voice-file" name="audio_file" type="file" accept="audio/*,.wav,.mp3,.flac,.ogg,.m4a" required />
+            <label class="consent-row">
+              <input id="voice-consent" name="consent" type="checkbox" value="true" required />
+              <span>I own this voice or have explicit permission to clone it.</span>
+            </label>
+            <button class="secondary-button" type="submit">Save local voice</button>
+          </form>
+          <p class="form-feedback" id="voice-feedback" aria-live="polite"></p>
+        </section>
+
+        <section class="history" aria-labelledby="history-title">
+          <div class="panel-heading">
+            <div>
+              <span class="panel-index">E</span>
+              <h2 id="history-title">Recent files</h2>
+            </div>
+            <button class="text-action" id="refresh-history" type="button">Refresh</button>
+          </div>
+          <ol id="history-list">
+            <li class="empty-history">No generated files yet.</li>
+          </ol>
+        </section>
+      </section>
+    </main>
+
+    <footer>
+      <span>Runs on localhost</span>
+      <span>No provider key</span>
+      <span id="footer-version">Studio build 0.1</span>
+    </footer>
+
+    <script src="app.js" defer></script>
+  </body>
+</html>

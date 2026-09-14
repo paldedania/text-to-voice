@@ -1,0 +1,1 @@
+"""Local speech engine adapters."""
