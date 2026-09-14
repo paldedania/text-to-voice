@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [[ "$(uname -s)" != "Linux" ]]; then
+  echo "This installer is for Linux. Use the matching installer listed in README.md." >&2
+  exit 1
+fi
+
 project_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 unit_name="text-to-voice.service"
 config_home="${XDG_CONFIG_HOME:-${HOME}/.config}"
@@ -11,7 +16,7 @@ python_path="$project_dir/.venv/bin/python"
 uvicorn_path="$project_dir/.venv/bin/uvicorn"
 
 if [[ ! -x "$python_path" || ! -x "$uvicorn_path" ]]; then
-  echo "The project environment is missing. Run: uv sync --extra dev --extra kokoro" >&2
+  echo "The project environment is missing. Follow the setup command in README.md." >&2
   exit 1
 fi
 

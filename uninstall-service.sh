@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [[ "$(uname -s)" != "Linux" ]]; then
+  echo "This uninstaller is for Linux. Use the matching uninstaller listed in README.md." >&2
+  exit 1
+fi
+
 unit_name="text-to-voice.service"
 config_home="${XDG_CONFIG_HOME:-${HOME}/.config}"
 unit_path="$config_home/systemd/user/$unit_name"
