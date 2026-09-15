@@ -15,12 +15,23 @@ from app.services.text import normalize_text
 from app.services.translation import LocalTranslator
 
 
+class QueueFullError(RuntimeError):
+    pass
+
+
 class JobManager:
-    def __init__(self, database: Database, registry: EngineRegistry, output_dir: Path) -> None:
+    def __init__(
+        self,
+        database: Database,
+        registry: EngineRegistry,
+        output_dir: Path,
+        max_queued_jobs: int = 8,
+    ) -> None:
         self.database = database
         self.registry = registry
         self.output_dir = output_dir
         self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="tts-worker")
+        self.capacity = threading.BoundedSemaphore(1 + max(0, max_queued_jobs))
         self.translator = LocalTranslator()
         self.futures: dict[str, Future[None]] = {}
         self.lock = threading.Lock()
@@ -40,31 +51,43 @@ class JobManager:
             request.language,
             reference_audio,
         )
+        if not self.capacity.acquire(blocking=False):
+            raise QueueFullError("The generation queue is full. Try again later.")
 
         job_id = uuid.uuid4().hex[:16]
-        self.database.create_job(
-            {
-                "id": job_id,
-                "status": "queued",
-                "progress": 0,
-                "engine": request.engine,
-                "voice_id": request.voice_id,
-                "language": request.language,
-                "output_format": request.output_format,
-                "text_preview": text[:160],
-                "created_at": utc_now(),
-            }
-        )
-        future = self.executor.submit(
-            self._run,
-            job_id,
-            request,
-            text,
-            reference_audio,
-        )
+        try:
+            self.database.create_job(
+                {
+                    "id": job_id,
+                    "status": "queued",
+                    "progress": 0,
+                    "engine": request.engine,
+                    "voice_id": request.voice_id,
+                    "language": request.language,
+                    "output_format": request.output_format,
+                    "text_preview": text[:160],
+                    "created_at": utc_now(),
+                }
+            )
+            future = self.executor.submit(
+                self._run,
+                job_id,
+                request,
+                text,
+                reference_audio,
+            )
+        except Exception:
+            self.capacity.release()
+            raise
         with self.lock:
             self.futures[job_id] = future
+        future.add_done_callback(lambda _future: self._release_job(job_id))
         return self.database.get_job(job_id) or {}
+
+    def _release_job(self, job_id: str) -> None:
+        with self.lock:
+            self.futures.pop(job_id, None)
+        self.capacity.release()
 
     def _resolve_reference_audio(self, voice_id: str) -> Path | None:
         voice = self.database.get_voice(voice_id)

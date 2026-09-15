@@ -94,6 +94,17 @@ class Database:
             ).fetchall()
         return [dict(row) for row in rows]
 
+    def fail_incomplete_jobs(self, error: str) -> None:
+        with self.connect() as connection:
+            connection.execute(
+                """
+                UPDATE jobs
+                SET status = 'failed', error = ?, completed_at = ?
+                WHERE status IN ('queued', 'running')
+                """,
+                (error, utc_now()),
+            )
+
     def create_voice(self, values: dict[str, Any]) -> None:
         with self.connect() as connection:
             connection.execute(
@@ -118,3 +129,7 @@ class Database:
         with self.connect() as connection:
             rows = connection.execute("SELECT * FROM voices ORDER BY created_at DESC").fetchall()
         return [dict(row) for row in rows]
+
+    def delete_voice(self, voice_id: str) -> None:
+        with self.connect() as connection:
+            connection.execute("DELETE FROM voices WHERE id = ?", (voice_id,))

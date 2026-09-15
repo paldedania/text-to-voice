@@ -66,8 +66,25 @@ def test_term_expansion_preserves_names_and_brands() -> None:
     )
 
     assert tokenizer.inputs == [
-        "My name is Divyansh. I study at CodingGita. I have a YouTube channel."
+        "My name is Divyansh.",
+        "I study at CodingGita.",
+        "I have a YouTube channel.",
     ]
+
+
+def test_mixed_chinese_and_english_translates_only_english_sentence() -> None:
+    translator = LocalTranslator()
+    tokenizer = _RecordingTokenizer("我在 CodingGita 学习。")
+    translator._tokenizer = tokenizer
+    translator._model = _FakeModel()
+
+    translated = translator.translate(
+        "我的名字是 Divyansh. I am studying at CodingGita.",
+        "zh",
+    )
+
+    assert tokenizer.inputs == ["I am studying at CodingGita."]
+    assert translated == "我的名字是 Divyansh.\n\n我在 CodingGita 学习。"
 
 
 @pytest.mark.parametrize(

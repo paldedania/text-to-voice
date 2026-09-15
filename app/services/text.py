@@ -8,6 +8,13 @@ _PARAGRAPH_RUN = re.compile(r"\n{3,}")
 _SENTENCE_BOUNDARY = re.compile(r"(?<=[.!?।])\s+")
 
 
+def has_visible_text(text: str) -> bool:
+    return any(
+        not character.isspace() and unicodedata.category(character) not in {"Cc", "Cf"}
+        for character in unicodedata.normalize("NFKC", text)
+    )
+
+
 def normalize_text(text: str) -> str:
     """Normalize invisible and repeated whitespace without flattening paragraphs."""
     text = unicodedata.normalize("NFKC", text).replace("\r\n", "\n").replace("\r", "\n")

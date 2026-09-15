@@ -33,28 +33,39 @@ def inspect_system() -> dict:
                 nvidia["name"] = line.split(":", 1)[1].strip()
                 break
     if nvidia_smi:
-        result = subprocess.run(
-            [
-                nvidia_smi,
-                "--query-gpu=name,memory.total,driver_version",
-                "--format=csv,noheader,nounits",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=5,
-            check=False,
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            name, memory, driver = [
-                part.strip() for part in result.stdout.splitlines()[0].split(",")
-            ]
-            nvidia.update(
-                ready=True,
-                name=name,
-                detail=f"{memory} MiB VRAM, driver {driver}",
+        try:
+            result = subprocess.run(
+                [
+                    nvidia_smi,
+                    "--query-gpu=name,memory.total,driver_version",
+                    "--format=csv,noheader,nounits",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
             )
-        elif result.stderr.strip():
-            nvidia["detail"] = result.stderr.strip().splitlines()[0]
+        except subprocess.TimeoutExpired:
+            nvidia["detail"] = "nvidia-smi timed out after 5 seconds"
+        except OSError as error:
+            nvidia["detail"] = f"nvidia-smi failed: {error}"
+        else:
+            fields = (
+                [part.strip() for part in result.stdout.splitlines()[0].split(",")]
+                if result.stdout.strip()
+                else []
+            )
+            if result.returncode == 0 and len(fields) == 3:
+                name, memory, driver = fields
+                nvidia.update(
+                    ready=True,
+                    name=name,
+                    detail=f"{memory} MiB VRAM, driver {driver}",
+                )
+            elif result.stderr.strip():
+                nvidia["detail"] = result.stderr.strip().splitlines()[0]
+            elif result.returncode == 0:
+                nvidia["detail"] = "nvidia-smi returned an unexpected response"
 
     torch_state = {"installed": importlib.util.find_spec("torch") is not None, "cuda": False}
     if torch_state["installed"]:

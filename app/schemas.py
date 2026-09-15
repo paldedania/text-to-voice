@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.services.text import has_visible_text
+
 AudioFormat = Literal["wav", "mp3", "opus"]
 
 
@@ -18,7 +20,7 @@ class SynthesisRequest(BaseModel):
     @field_validator("text")
     @classmethod
     def reject_blank_text(cls, value: str) -> str:
-        if not value.strip():
+        if not has_visible_text(value):
             raise ValueError("Enter text before generating speech.")
         return value
 
