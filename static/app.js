@@ -26,9 +26,11 @@ const elements = {
   translationResult: document.querySelector("#translation-result"),
   translatedText: document.querySelector("#translated-text"),
   audioPlayer: document.querySelector("#audio-player"),
+  cancelJob: document.querySelector("#cancel-job"),
   downloadLink: document.querySelector("#download-link"),
   voiceForm: document.querySelector("#voice-form"),
   voiceFeedback: document.querySelector("#voice-feedback"),
+  savedVoices: document.querySelector("#saved-voices"),
   historyList: document.querySelector("#history-list"),
   refreshHistory: document.querySelector("#refresh-history"),
 };
@@ -51,8 +53,16 @@ async function request(url, options = {}) {
 
 function updateCounts() {
   const text = elements.script.value;
-  const words = text.trim() ? text.trim().split(/\s+/u).length : 0;
-  elements.characterCount.textContent = `${text.length.toLocaleString()} / 20,000`;
+  const trimmed = text.trim();
+  const words = !trimmed
+    ? 0
+    : "Segmenter" in Intl
+      ? [...new Intl.Segmenter(undefined, { granularity: "word" }).segment(trimmed)].filter(
+          (part) => part.isWordLike,
+        ).length
+      : trimmed.split(/\s+/u).length;
+  const characters = [...text].length;
+  elements.characterCount.textContent = `${characters.toLocaleString()} / 20,000`;
   elements.wordCount.textContent = `${words.toLocaleString()} ${words === 1 ? "word" : "words"}`;
 }
 
@@ -152,7 +162,27 @@ async function loadEngines() {
 
 async function loadVoices() {
   state.customVoices = await request("/api/voices");
+  renderSavedVoices();
   updateEngineControls();
+}
+
+function renderSavedVoices() {
+  elements.savedVoices.hidden = state.customVoices.length === 0;
+  elements.savedVoices.replaceChildren(
+    ...state.customVoices.map((voice) => {
+      const item = document.createElement("li");
+      const name = document.createElement("span");
+      const remove = document.createElement("button");
+      name.textContent = voice.name;
+      remove.type = "button";
+      remove.className = "danger-action";
+      remove.dataset.voiceId = voice.id;
+      remove.textContent = "Delete";
+      remove.setAttribute("aria-label", `Delete saved voice ${voice.name}`);
+      item.append(name, remove);
+      return item;
+    }),
+  );
 }
 
 function setOutput(status, message, progress = 0) {
@@ -167,6 +197,7 @@ function resetAudio() {
   elements.audioPlayer.removeAttribute("src");
   elements.downloadLink.hidden = true;
   elements.downloadLink.removeAttribute("href");
+  elements.cancelJob.hidden = true;
   elements.translationResult.hidden = true;
   elements.translationResult.open = false;
   elements.translatedText.textContent = "";
@@ -178,6 +209,11 @@ async function submitGeneration(event) {
   if (!text) {
     elements.script.focus();
     setOutput("Script needed", "Enter some text before generating speech.", 0);
+    return;
+  }
+  if ([...text].length > 20_000) {
+    elements.script.focus();
+    setOutput("Script too long", "Shorten the script to 20,000 characters or fewer.", 0);
     return;
   }
 
@@ -200,6 +236,7 @@ async function submitGeneration(event) {
       }),
     });
     state.activeJob = job.id;
+    elements.cancelJob.hidden = false;
     watchJob(job.id);
   } catch (error) {
     setOutput("Generation failed", error.message, 0);
@@ -212,6 +249,8 @@ async function watchJob(jobId) {
   try {
     const job = await request(`/api/jobs/${jobId}`);
     if (job.status === "complete") {
+      state.activeJob = null;
+      elements.cancelJob.hidden = true;
       setOutput("Audio ready", `Generated in ${job.generation_seconds.toFixed(2)} seconds.`, 100);
       if (job.translated_text) {
         elements.translatedText.textContent = job.translated_text;
@@ -227,12 +266,15 @@ async function watchJob(jobId) {
       return;
     }
     if (job.status === "failed" || job.status === "cancelled") {
+      state.activeJob = null;
+      elements.cancelJob.hidden = true;
       setOutput("Generation failed", job.error || "The local model stopped.", job.progress);
       elements.generate.disabled = !selectedEngine()?.available;
       await loadHistory();
       return;
     }
     const translating = !["en", "en-gb"].includes(job.language) && job.progress < 35;
+    elements.cancelJob.hidden = job.status !== "queued";
     const status =
       job.status === "queued"
         ? "Waiting for GPU"
@@ -263,6 +305,45 @@ async function saveVoice(event) {
   } catch (error) {
     elements.voiceFeedback.classList.add("error");
     elements.voiceFeedback.textContent = error.message;
+  }
+}
+
+async function deleteVoice(event) {
+  const button = event.target.closest("button[data-voice-id]");
+  if (!button) return;
+  const voice = state.customVoices.find((item) => item.id === button.dataset.voiceId);
+  if (!voice || !window.confirm(`Delete the saved voice "${voice.name}" from this computer?`)) {
+    return;
+  }
+
+  button.disabled = true;
+  try {
+    await request(`/api/voices/${voice.id}`, { method: "DELETE" });
+    elements.voiceFeedback.classList.remove("error");
+    elements.voiceFeedback.textContent = `Deleted ${voice.name}.`;
+    await loadVoices();
+  } catch (error) {
+    button.disabled = false;
+    elements.voiceFeedback.classList.add("error");
+    elements.voiceFeedback.textContent = error.message;
+  }
+}
+
+async function cancelActiveJob() {
+  if (!state.activeJob) return;
+  elements.cancelJob.disabled = true;
+  try {
+    await request(`/api/jobs/${state.activeJob}`, { method: "DELETE" });
+    state.activeJob = null;
+    elements.cancelJob.hidden = true;
+    setOutput("Generation cancelled", "The queued job was removed.", 0);
+    elements.generate.disabled = !selectedEngine()?.available;
+    await loadHistory();
+  } catch (error) {
+    elements.cancelJob.hidden = true;
+    setOutput("Could not cancel", error.message, 0);
+  } finally {
+    elements.cancelJob.disabled = false;
   }
 }
 
@@ -310,6 +391,8 @@ elements.speed.addEventListener("input", () => {
 });
 elements.form.addEventListener("submit", submitGeneration);
 elements.voiceForm.addEventListener("submit", saveVoice);
+elements.savedVoices.addEventListener("click", deleteVoice);
+elements.cancelJob.addEventListener("click", cancelActiveJob);
 elements.refreshHistory.addEventListener("click", loadHistory);
 
 Promise.all([loadSystem(), loadVoices()])

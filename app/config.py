@@ -17,6 +17,7 @@ class Settings:
     port: int = 8765
     max_text_characters: int = 20_000
     max_reference_bytes: int = 20 * 1024 * 1024
+    max_queued_jobs: int = 8
 
     @classmethod
     def load(cls) -> Settings:
@@ -28,6 +29,10 @@ class Settings:
             database_path=data_dir / "text-to-voice.sqlite3",
             host=os.environ.get("TEXT_TO_VOICE_HOST", "127.0.0.1"),
             port=int(os.environ.get("TEXT_TO_VOICE_PORT", "8765")),
+            max_queued_jobs=max(
+                0,
+                int(os.environ.get("TEXT_TO_VOICE_MAX_QUEUED_JOBS", "8")),
+            ),
         )
 
     def prepare(self) -> None:

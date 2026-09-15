@@ -43,7 +43,6 @@
           <label class="visually-hidden" for="script">Text to speak</label>
           <textarea
             id="script"
-            maxlength="20000"
             spellcheck="true"
             placeholder="Paste a paragraph, lesson, note, or narration..."
           ></textarea>
@@ -113,7 +112,12 @@
             <small>Local machine translation can make mistakes. Review the script before using the audio.</small>
           </details>
           <audio id="audio-player" controls hidden></audio>
-          <a class="download-link" id="download-link" href="#" download hidden>Save audio</a>
+          <div class="output-actions">
+            <button class="danger-action" id="cancel-job" type="button" hidden>
+              Cancel queued job
+            </button>
+            <a class="download-link" id="download-link" href="#" download hidden>Save audio</a>
+          </div>
         </div>
       </section>
 
@@ -142,6 +146,7 @@
             <button class="secondary-button" type="submit">Save local voice</button>
           </form>
           <p class="form-feedback" id="voice-feedback" aria-live="polite"></p>
+          <ul class="saved-voices" id="saved-voices" aria-label="Saved cloned voices" hidden></ul>
         </section>
 
         <section class="history" aria-labelledby="history-title">

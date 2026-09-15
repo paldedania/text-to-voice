@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import re
+import unicodedata
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -14,18 +14,26 @@ from app.config import PROJECT_DIR, Settings
 from app.db import Database, utc_now
 from app.engines.registry import EngineRegistry
 from app.schemas import EngineResponse, JobResponse, SynthesisRequest, VoiceResponse
-from app.services.jobs import JobManager
+from app.services.jobs import JobManager, QueueFullError
 from app.system import inspect_system
 
 ALLOWED_REFERENCE_EXTENSIONS = {".wav", ".mp3", ".flac", ".ogg", ".m4a"}
-SAFE_NAME = re.compile(r"[^a-zA-Z0-9 _.-]+")
+
+
+def clean_voice_name(name: str) -> str:
+    normalized = unicodedata.normalize("NFKC", name)
+    clean = "".join(
+        character for character in normalized if character.isalnum() or character in " _.-"
+    )
+    return clean.strip() or "Local voice"
 
 
 def job_response(job: dict) -> JobResponse:
     output_path = job.get("output_path")
+    audio_available = bool(output_path and Path(output_path).is_file())
     return JobResponse(
         **job,
-        audio_url=f"/api/audio/{job['id']}" if output_path else None,
+        audio_url=f"/api/audio/{job['id']}" if audio_available else None,
     )
 
 
@@ -34,8 +42,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     settings.prepare()
     database = Database(settings.database_path)
     database.initialize()
+    database.fail_incomplete_jobs("Generation stopped because the app restarted.")
     registry = EngineRegistry()
-    manager = JobManager(database, registry, settings.output_dir)
+    manager = JobManager(
+        database,
+        registry,
+        settings.output_dir,
+        max_queued_jobs=settings.max_queued_jobs,
+    )
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
@@ -81,6 +95,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def synthesize(request: SynthesisRequest) -> JobResponse:
         try:
             return job_response(manager.submit(request))
+        except QueueFullError as error:
+            raise HTTPException(status_code=429, detail=str(error)) from error
         except (ValueError, RuntimeError) as error:
             raise HTTPException(status_code=400, detail=str(error)) from error
 
@@ -114,7 +130,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/api/voices", response_model=list[VoiceResponse])
     async def list_custom_voices() -> list[VoiceResponse]:
-        return [VoiceResponse(**voice) for voice in database.list_voices()]
+        voices = []
+        voice_directory = settings.voices_dir.resolve()
+        for voice in database.list_voices():
+            path = Path(voice["stored_path"])
+            if not path.is_file() or path.parent.resolve() != voice_directory:
+                database.delete_voice(voice["id"])
+                continue
+            voices.append(VoiceResponse(**voice))
+        return voices
 
     @app.post("/api/voices", response_model=VoiceResponse, status_code=201)
     async def create_voice(
@@ -142,7 +166,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
 
         voice_id = uuid.uuid4().hex[:16]
-        clean_name = SAFE_NAME.sub("", name).strip() or "Local voice"
+        clean_name = clean_voice_name(name)
         destination = settings.voices_dir / f"{voice_id}{suffix}"
         destination.write_bytes(content)
         record = {
@@ -153,8 +177,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "consent_version": "v1-owner-or-permission",
             "created_at": utc_now(),
         }
-        database.create_voice(record)
+        try:
+            database.create_voice(record)
+        except Exception:
+            destination.unlink(missing_ok=True)
+            raise
         return VoiceResponse(**record)
+
+    @app.delete("/api/voices/{voice_id}", status_code=204)
+    async def delete_voice(voice_id: str) -> None:
+        voice = database.get_voice(voice_id)
+        if not voice:
+            raise HTTPException(status_code=404, detail="Saved voice not found.")
+
+        path = Path(voice["stored_path"])
+        if path.parent.resolve() == settings.voices_dir.resolve():
+            path.unlink(missing_ok=True)
+        database.delete_voice(voice_id)
 
     static_dir = PROJECT_DIR / "static"
     app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
