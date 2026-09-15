@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import re
 from collections.abc import Callable
 
 from app.services.text import split_text
@@ -33,6 +34,35 @@ M2M_LANGUAGE_CODES = {
     "tr": "tr",
     "zh": "zh",
 }
+
+# M2M100 often copies newer English job/creator labels instead of translating
+# them. Expanding those labels into plain English gives the model enough
+# semantic context to produce native target-language wording.
+SOURCE_TERM_EXPANSIONS = {
+    "vloggers": "video content creators",
+    "vlogger": "video content creator",
+    "youtubers": "YouTube video creators",
+    "youtuber": "YouTube video creator",
+    "influencers": "social media content creators",
+    "influencer": "social media content creator",
+    "streamers": "live video creators",
+    "streamer": "live video creator",
+    "podcasters": "hosts of online audio shows",
+    "podcaster": "host of an online audio show",
+}
+_SOURCE_TERM_PATTERN = re.compile(
+    rf"\b({'|'.join(map(re.escape, SOURCE_TERM_EXPANSIONS))})\b",
+    flags=re.IGNORECASE,
+)
+
+
+def expand_translation_terms(text: str) -> str:
+    """Rewrite English loanwords that M2M100 commonly copies unchanged."""
+
+    return _SOURCE_TERM_PATTERN.sub(
+        lambda match: SOURCE_TERM_EXPANSIONS[match.group(0).lower()],
+        text,
+    )
 
 
 class LocalTranslator:
@@ -87,7 +117,8 @@ class LocalTranslator:
 
         tokenizer, model = self._load()
         tokenizer.src_lang = "en"
-        chunks = split_text(text, max_characters=450)
+        normalized_text = expand_translation_terms(text)
+        chunks = split_text(normalized_text, max_characters=450)
         translations: list[str] = []
         for index, chunk in enumerate(chunks):
             encoded = tokenizer(
