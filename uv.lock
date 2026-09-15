@@ -405,6 +405,11 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/09/e4/67eeb715b602e7024e8291554cb60bae2f3d87e9987db1f8a1b4c0a0e567/fugashi-1.5.2-cp311-cp311-win_amd64.whl", hash = "sha256:5c5e04cb808f5cd46fc682469702f1e34f6199a264514e5c21b1e17ea4f8313f", size = 508985, upload-time = "2025-10-24T07:24:03.042Z" },
 ]
 
+[package.optional-dependencies]
+unidic-lite = [
+    { name = "unidic-lite" },
+]
+
 [[package]]
 name = "h11"
 version = "0.16.0"
@@ -687,13 +692,6 @@ en = [
     { name = "phonemizer-fork" },
     { name = "spacy" },
     { name = "spacy-curated-transformers" },
-]
-ja = [
-    { name = "fugashi" },
-    { name = "jaconv" },
-    { name = "mojimoji" },
-    { name = "pyopenjtalk" },
-    { name = "unidic" },
 ]
 zh = [
     { name = "cn2an" },
@@ -982,15 +980,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/42/fa/9294d2f11890ca49d0bdac7a4da60cbe5686629bfd4987cae0ad75e051cc/phonemizer_fork-3.3.2.tar.gz", hash = "sha256:10e16e827d0443b087062e21b55e805c00989cf1343b2e81e734cae5f6c0cf69", size = 300989, upload-time = "2025-01-30T13:02:31.201Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/64/f1/0dcce21b0ae16a82df4b6583f8f3ad8e55b35f7e98b6bf536a4dd225fa08/phonemizer_fork-3.3.2-py3-none-any.whl", hash = "sha256:97305c76f4183b3825dae8f4c032265fe78c9946ce58c47d4b62161349264b74", size = 82700, upload-time = "2025-01-30T13:02:28.667Z" },
-]
-
-[[package]]
-name = "plac"
-version = "1.4.7"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/d6/5f/40553c01a1d1424118196e7c29defe40715fd5f56939b9c824aa480112cd/plac-1.4.7.tar.gz", hash = "sha256:957ffbab8ea8ab8c0b9f2694daa2a95f3560151cd162bcbc91e97ff94d45c4f9", size = 39095, upload-time = "2026-09-07T15:06:57.54Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/14/f1/405c082aeb4ec5ec0744d1e059d9da9530bb7aaa8fd5dafae97706a2cfcd/plac-1.4.7-py2.py3-none-any.whl", hash = "sha256:8af4bcd5d52e06c31fab641bffb7040d0eb0e579e2f70a4d2e87af5eed0612ea", size = 22001, upload-time = "2026-09-07T15:06:56.691Z" },
 ]
 
 [[package]]
@@ -1613,9 +1602,13 @@ dev = [
 ]
 kokoro = [
     { name = "en-core-web-sm" },
+    { name = "fugashi", extra = ["unidic-lite"] },
+    { name = "jaconv" },
     { name = "kokoro" },
-    { name = "misaki", extra = ["ja", "zh"] },
+    { name = "misaki", extra = ["zh"] },
+    { name = "mojimoji" },
     { name = "numpy" },
+    { name = "pyopenjtalk" },
     { name = "sentencepiece" },
     { name = "soundfile" },
     { name = "torch", version = "2.10.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform == 'darwin' and extra == 'extra-13-text-to-voice-cpu') or (extra == 'extra-13-text-to-voice-cpu' and extra == 'extra-13-text-to-voice-cuda')" },
@@ -1628,9 +1621,13 @@ kokoro = [
 requires-dist = [
     { name = "en-core-web-sm", marker = "extra == 'kokoro'", url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" },
     { name = "fastapi", specifier = ">=0.116" },
+    { name = "fugashi", extras = ["unidic-lite"], marker = "extra == 'kokoro'", specifier = ">=1.5.2" },
+    { name = "jaconv", marker = "extra == 'kokoro'", specifier = ">=0.4.0" },
     { name = "kokoro", marker = "extra == 'kokoro'", specifier = ">=0.9.4" },
-    { name = "misaki", extras = ["ja", "zh"], marker = "extra == 'kokoro'", specifier = ">=0.9.4" },
+    { name = "misaki", extras = ["zh"], marker = "extra == 'kokoro'", specifier = ">=0.9.4" },
+    { name = "mojimoji", marker = "extra == 'kokoro'", specifier = ">=0.0.13" },
     { name = "numpy", marker = "extra == 'kokoro'", specifier = ">=2.0" },
+    { name = "pyopenjtalk", marker = "extra == 'kokoro'", specifier = ">=0.4.1" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.4" },
     { name = "python-multipart", specifier = ">=0.0.20" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.12" },
@@ -1901,16 +1898,10 @@ wheels = [
 ]
 
 [[package]]
-name = "unidic"
-version = "1.1.0"
+name = "unidic-lite"
+version = "1.0.8"
 source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "plac" },
-    { name = "requests" },
-    { name = "tqdm" },
-    { name = "wasabi" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/5a/09/271dfbf8d5b56adddc70e30fa94249f5d3ab35f615bf278d65258045564a/unidic-1.1.0.tar.gz", hash = "sha256:0ab91c05de342c84d2a6314901fd3afb9061ecd7534dd4a0431dccbb87d921b7", size = 7688, upload-time = "2021-10-10T08:56:44.301Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/55/2b/8cf7514cb57d028abcef625afa847d60ff1ffbf0049c36b78faa7c35046f/unidic-lite-1.0.8.tar.gz", hash = "sha256:db9d4572d9fdd4d00a97949d4b0741ec480ee05a7e7e2e32f547500dae27b245", size = 47356746, upload-time = "2021-01-25T06:07:54.719Z" }
 
 [[package]]
 name = "uritemplate"
